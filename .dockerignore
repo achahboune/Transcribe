@@ -1,0 +1,6 @@
+# flyctl launch added from transcribeai-fly/.gitignore
+transcribeai-fly/**/.env
+transcribeai-fly/**/__pycache__
+transcribeai-fly/**/*.pyc
+transcribeai-fly/**/.DS_Store
+fly.toml

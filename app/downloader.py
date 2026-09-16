@@ -1,0 +1,84 @@
+import subprocess
+import uuid
+import json
+import shutil
+import tempfile
+from pathlib import Path
+
+TMP_DIR = Path(tempfile.gettempdir()) / "transcribeai_jobs"
+TMP_DIR.mkdir(exist_ok=True)
+
+
+class DownloadError(Exception):
+    pass
+
+
+def detect_platform(url: str) -> str:
+    u = url.lower()
+    if "tiktok" in u:
+        return "tiktok"
+    if "instagram" in u:
+        return "instagram"
+    if "facebook" in u or "fb.watch" in u:
+        return "facebook"
+    if "x.com" in u or "twitter" in u:
+        return "x"
+    return "unknown"
+
+
+def download_audio(url: str, max_duration_seconds: int = 900) -> dict:
+    job_id = str(uuid.uuid4())
+    job_dir = TMP_DIR / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    output_template = str(job_dir / "source.%(ext)s")
+
+    # Probe duration first
+    probe_cmd = ["yt-dlp", "--no-warnings", "--skip-download", "--print-json", url]
+    duration, title = None, "untitled"
+    try:
+        probe = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=60)
+        if probe.returncode == 0 and probe.stdout.strip():
+            info = json.loads(probe.stdout.strip().splitlines()[-1])
+            duration = info.get("duration") or None
+            title = info.get("title", "untitled")
+            if duration and duration > max_duration_seconds:
+                raise DownloadError(
+                    f"Video is {int(duration/60)} min long, exceeds the {int(max_duration_seconds/60)} min limit."
+                )
+    except subprocess.TimeoutExpired:
+        raise DownloadError("Timed out reading video info. The link may be invalid or private.")
+    except json.JSONDecodeError:
+        pass
+
+    # Download audio as 16kHz mono WAV (what whisper/faster-whisper expects)
+    dl_cmd = [
+        "yt-dlp", "--no-warnings",
+        "-f", "bestaudio/best",
+        "--extract-audio", "--audio-format", "wav",
+        "--postprocessor-args", "ffmpeg:-ar 16000 -ac 1",
+        "-o", output_template,
+        url,
+    ]
+    try:
+        result = subprocess.run(dl_cmd, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        raise DownloadError("Download timed out. Try a shorter video or check the link.")
+
+    if result.returncode != 0:
+        stderr_tail = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "unknown error"
+        raise DownloadError(f"Could not download this link ({stderr_tail}). It may be private or unavailable.")
+
+    wav_files = list(job_dir.glob("*.wav"))
+    if not wav_files:
+        raise DownloadError("Download succeeded but no audio track was produced.")
+
+    return {
+        "wav_path": str(wav_files[0]),
+        "duration_seconds": duration,
+        "title": title,
+        "job_dir": str(job_dir),
+    }
+
+
+def cleanup_job_dir(job_dir: str):
+    shutil.rmtree(job_dir, ignore_errors=True)
