@@ -26,6 +26,7 @@ from .config import settings, PLAN_LIMITS_MINUTES
 from .tunnel import get_current_tunnel_url, check_whisper_alive, TunnelUnavailableError
 from .downloader import download_audio, detect_platform, cleanup_job_dir, DownloadError
 from .auth import get_current_user, get_profile, update_minutes_used
+from .billing import router as billing_router
 
 app = FastAPI(title="TranscribeAI Orchestrator")
 
@@ -36,6 +37,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(billing_router)
+
 
 # Serve the frontend (frontend/index.html) at the root — this avoids the
 # artifact/claude.ai CSP that blocks fetch() calls to external APIs like

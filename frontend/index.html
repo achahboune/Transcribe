@@ -625,9 +625,26 @@ function handleCopy() {
   });
 }
 
-function handleUpgradeClick(plan) {
+async function handleUpgradeClick(plan) {
   if (!currentSession) { openAuthModal('signup'); return; }
-  alert('Payments are coming soon — this plan is not yet purchasable.');
+  try {
+    const res = await fetch(`${API_BASE}/api/billing/create-checkout-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({ plan })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.detail || 'Could not start checkout. Please try again.');
+      return;
+    }
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    alert('Could not start checkout. Please try again.');
+  }
 }
 
 initSession();

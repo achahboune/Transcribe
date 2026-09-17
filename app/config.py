@@ -7,6 +7,15 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_key: str
 
+    # Stripe — leave placeholders until the real dashboard keys are available.
+    # The app still starts fine with placeholders; billing endpoints will
+    # just return a clear error until real keys are set.
+    stripe_secret_key: str = "sk_test_placeholder"
+    stripe_webhook_secret: str = "whsec_placeholder"
+    stripe_price_creator: str = "price_placeholder_creator"
+    stripe_price_pro: str = "price_placeholder_pro"
+    frontend_url: str = "https://transcribe-u5sf.onrender.com"
+
     max_job_seconds: int = 900  # 15 min hard cap per video for the MVP
     whisper_call_timeout: int = 600  # generous — long videos take time to transcribe
 
