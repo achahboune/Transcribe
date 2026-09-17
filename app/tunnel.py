@@ -1,6 +1,6 @@
 """
 Reads the current Whisper tunnel URL from the tunnel_config table in Supabase.
-This is how the Fly-hosted API finds Alaa's local machine, wherever its
+This is how the Render-hosted API finds Alaa's local machine, wherever its
 Cloudflare quick-tunnel URL currently points (it changes each time the
 tunnel is restarted).
 """

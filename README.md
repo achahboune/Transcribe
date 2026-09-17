@@ -84,4 +84,3 @@ Le tunnel "quick" (sans compte nomme) de Cloudflare n'a aucune garantie de dispo
 et peut couper apres une longue periode d'inactivite reseau. Le mode polling contourne
 le probleme des connexions HTTP longues, mais si le tunnel lui-meme tombe completement
 (ex: perte de connexion internet chez toi), il faudra relancer `start_tunnel.py`.
-"# Transcribe" 

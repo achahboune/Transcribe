@@ -1,4 +1,4 @@
-# TranscribeAI Orchestrator — lightweight image for Fly.io.
+# TranscribeAI Orchestrator — lightweight image for Render.
 # No Whisper here: transcription happens on Alaa's local machine,
 # reached through the Cloudflare tunnel URL stored in Supabase.
 

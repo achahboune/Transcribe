@@ -1,4 +1,4 @@
-app = "transcribeai-fly"
+app = "transcribeai-CHANGE-ME"
 primary_region = "cdg"
 
 [build]

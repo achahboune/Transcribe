@@ -2,8 +2,8 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Supabase — used here just to read/write the tunnel_url row.
-    # Full auth/profiles wiring comes in a later step.
+    # Supabase — used to read/write the tunnel_url row, and now also for
+    # verifying user sessions and reading/writing their profile (plan, quota).
     supabase_url: str
     supabase_service_key: str
 
@@ -15,3 +15,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+PLAN_LIMITS_MINUTES = {
+    "free": 30,
+    "creator": 600,
+    "pro": 1800,
+}

@@ -1,28 +1,28 @@
 """
-TranscribeAI — Fly orchestrator.
+TranscribeAI — Render orchestrator.
 
 This service does NOT run Whisper. It:
-1. Reads Alaa's current tunnel URL from Supabase.
-2. Pings it to fail fast if his machine/tunnel is offline.
-3. Downloads the video's audio via yt-dlp.
-4. Submits the audio to his local Whisper API (which replies immediately
+1. Authenticates the user via their Supabase session token, and checks
+   their plan's remaining quota.
+2. Reads Alaa's current tunnel URL from Supabase.
+3. Pings it to fail fast if his machine/tunnel is offline.
+4. Downloads the video's audio via yt-dlp.
+5. Submits the audio to his local Whisper API (which replies immediately
    with a job_id) and polls /status/{job_id} until done — this keeps every
    single HTTP call through the Cloudflare tunnel short, so the tunnel
    never times out even on long videos.
-5. Returns the transcript.
-
-Auth (Supabase users) and Stripe billing are added in a later step —
-this version proves the download -> tunnel -> whisper -> response path end to end.
+6. Returns the transcript, and updates the user's quota usage.
 """
 import asyncio
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 
-from .config import settings
+from .config import settings, PLAN_LIMITS_MINUTES
 from .tunnel import get_current_tunnel_url, check_whisper_alive, TunnelUnavailableError
 from .downloader import download_audio, detect_platform, cleanup_job_dir, DownloadError
+from .auth import get_current_user, get_profile, update_minutes_used
 
 app = FastAPI(title="TranscribeAI Orchestrator")
 
@@ -51,7 +51,7 @@ def health():
 
 @app.get("/api/whisper-status")
 async def whisper_status():
-    """Lets the frontend show a live green/red availability indicator."""
+    """Lets the frontend show a live green/red availability indicator. No auth needed."""
     try:
         tunnel_url = await get_current_tunnel_url()
     except TunnelUnavailableError as e:
@@ -61,9 +61,33 @@ async def whisper_status():
     return {"available": alive, "reason": None if alive else "Whisper machine is offline."}
 
 
+@app.get("/api/me")
+async def me(user=Depends(get_current_user)):
+    profile = await get_profile(user["id"])
+    limit = PLAN_LIMITS_MINUTES.get(profile.get("plan", "free"), 30)
+    return {
+        "email": profile.get("email"),
+        "plan": profile.get("plan", "free"),
+        "minutes_used_this_period": profile.get("minutes_used_this_period", 0),
+        "minutes_limit": limit,
+    }
+
+
 @app.post("/api/transcribe")
-async def transcribe(payload: TranscribeRequest):
-    # 1. Fail fast if Alaa's machine isn't reachable — don't waste time downloading first.
+async def transcribe(payload: TranscribeRequest, user=Depends(get_current_user)):
+    # 1. Load profile and enforce quota
+    profile = await get_profile(user["id"])
+    plan = profile.get("plan", "free")
+    minutes_used = profile.get("minutes_used_this_period", 0)
+    minutes_limit = PLAN_LIMITS_MINUTES.get(plan, 30)
+
+    if minutes_used >= minutes_limit:
+        raise HTTPException(
+            status_code=402,
+            detail=f"You've used your {minutes_limit} min/month on the {plan} plan. Upgrade to continue.",
+        )
+
+    # 2. Fail fast if Alaa's machine isn't reachable — don't waste time downloading first.
     try:
         tunnel_url = await get_current_tunnel_url()
     except TunnelUnavailableError:
@@ -79,16 +103,18 @@ async def transcribe(payload: TranscribeRequest):
             detail="Transcription is temporarily unavailable. Please try again shortly.",
         )
 
-    # 2. Download audio
+    # 3. Download audio — cap this job at whatever quota the user has left
     url = str(payload.url)
     platform = detect_platform(url)
     job_dir = None
+    remaining_minutes = minutes_limit - minutes_used
+    max_seconds = min(settings.max_job_seconds, int(remaining_minutes * 60))
+
     try:
-        download = download_audio(url, max_duration_seconds=settings.max_job_seconds)
+        download = download_audio(url, max_duration_seconds=max_seconds)
         job_dir = download["job_dir"]
 
-        # 3. Submit to local Whisper — returns immediately with a job_id.
-        # Short-lived call, so the tunnel never has time to time out here.
+        # 4. Submit to local Whisper — returns immediately with a job_id.
         with open(download["wav_path"], "rb") as f:
             files = {"file": ("audio.wav", f, "audio/wav")}
             data = {"language": payload.language}
@@ -106,10 +132,7 @@ async def transcribe(payload: TranscribeRequest):
         if not job_id:
             raise HTTPException(status_code=502, detail="Transcription engine did not return a job id.")
 
-        # 4. Poll /status/{job_id} with short requests until done.
-        # Each poll is its own brief HTTP call through the tunnel — never
-        # one long-held connection — so long videos no longer trigger a
-        # tunnel timeout (524).
+        # 5. Poll /status/{job_id} with short requests until done.
         result = None
         async with httpx.AsyncClient(timeout=15) as client:
             for _ in range(MAX_POLL_ATTEMPTS):
@@ -117,7 +140,6 @@ async def transcribe(payload: TranscribeRequest):
                 try:
                     status_resp = await client.get(f"{tunnel_url}/status/{job_id}")
                 except httpx.RequestError:
-                    # Transient blip on the tunnel — keep polling, don't fail immediately.
                     continue
 
                 if status_resp.status_code != 200:
@@ -132,7 +154,6 @@ async def transcribe(payload: TranscribeRequest):
                         status_code=502,
                         detail=f"Transcription failed: {status_data.get('error', 'unknown error')}",
                     )
-                # else: still "processing" — keep polling
 
         if result is None:
             raise HTTPException(
@@ -140,11 +161,18 @@ async def transcribe(payload: TranscribeRequest):
                 detail="Transcription is taking longer than expected. Please try again.",
             )
 
+        # 6. Update quota usage
+        actual_duration = result.get("duration") or download.get("duration_seconds") or 0
+        new_total = minutes_used + (actual_duration / 60.0)
+        await update_minutes_used(user["id"], new_total)
+
         return {
             "transcript": result["text"],
             "detected_language": result.get("detected_language"),
             "platform": platform,
-            "duration_seconds": result.get("duration") or download.get("duration_seconds"),
+            "duration_seconds": actual_duration,
+            "minutes_used_this_period": round(new_total, 2),
+            "minutes_limit": minutes_limit,
         }
 
     except DownloadError as e:
