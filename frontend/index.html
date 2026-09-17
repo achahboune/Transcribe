@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TranscribeAI — Turn any video into text</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #0F1115;
+    --bg-raised: #161920;
+    --bg-inset: #0B0D11;
+    --border: #262B35;
+    --text: #E8EAED;
+    --text-dim: #8B92A0;
+    --text-faint: #565D6B;
+    --signal: #5EEAD4;
+    --signal-dim: #1B3A38;
+    --amber: #F5C542;
+    --danger: #F0665A;
+    --radius: 10px;
+    --font: 'Space Grotesk', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  a{color:inherit;}
+  ::selection{background:var(--signal); color:#0F1115;}
+
+  .shell{max-width:680px; margin:0 auto; padding:0 24px 120px;}
+  header.top{
+    display:flex; align-items:center; justify-content:space-between;
+    max-width:680px; margin:0 auto; padding:28px 24px 40px;
+  }
+  .logo{
+    display:flex; align-items:center; gap:10px;
+    font-weight:600; font-size:17px; letter-spacing:-0.01em;
+  }
+  .logo-mark{
+    width:26px; height:26px; border-radius:6px;
+    background:linear-gradient(160deg, var(--signal), #2DD4BF);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .logo-mark svg{width:14px; height:14px;}
+  .auth-area{display:flex; align-items:center; gap:12px; font-size:14px;}
+  .pill{
+    padding:6px 12px; border-radius:100px; font-size:12.5px;
+    background:var(--bg-raised); color:var(--text-dim); border:1px solid var(--border);
+    font-family:var(--mono);
+  }
+  .status-dot{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px;
+    color:var(--text-faint); font-family:var(--mono);
+  }
+  .status-dot .dot{width:6px; height:6px; border-radius:50%; background:var(--text-faint);}
+  .status-dot.online .dot{background:var(--signal); box-shadow:0 0 6px var(--signal);}
+  .status-dot.offline .dot{background:var(--danger);}
+
+  button, .btn{font-family:var(--font); cursor:pointer; border:none; outline:none;}
+  .btn-ghost{
+    background:transparent; color:var(--text-dim); font-size:14px;
+    padding:8px 4px; border-bottom:1px solid transparent;
+  }
+  .btn-ghost:hover{color:var(--text);}
+  .btn-signin{
+    background:var(--bg-raised); color:var(--text); border:1px solid var(--border);
+    padding:9px 16px; border-radius:8px; font-size:14px; font-weight:500;
+    transition:border-color .15s ease;
+  }
+  .btn-signin:hover{border-color:var(--signal);}
+
+  .hero{padding:8px 0 28px;}
+  .hero h1{
+    font-size:40px; font-weight:600; letter-spacing:-0.03em; line-height:1.12;
+    max-width:520px;
+  }
+  .hero p{color:var(--text-dim); font-size:16px; margin-top:14px; max-width:460px;}
+  .platforms{display:flex; gap:8px; margin-top:22px; flex-wrap:wrap;}
+  .platform-tag{
+    font-family:var(--mono); font-size:12px; color:var(--text-faint);
+    border:1px solid var(--border); border-radius:6px; padding:5px 9px;
+  }
+
+  .service-banner{
+    display:flex; align-items:center; gap:10px; margin-bottom:20px;
+    padding:11px 14px; border-radius:8px; font-size:13px; border:1px solid var(--border);
+    background:var(--bg-raised); color:var(--text-dim);
+  }
+  .service-banner.offline{border-color:rgba(240,102,90,0.3); background:rgba(240,102,90,0.06); color:#F0938A;}
+
+  .card{
+    background:var(--bg-raised); border:1px solid var(--border);
+    border-radius:var(--radius); padding:24px;
+  }
+  .field-label{
+    font-size:12.5px; color:var(--text-faint); font-family:var(--mono);
+    margin-bottom:8px; display:block;
+  }
+  .url-row{display:flex; gap:10px; margin-bottom:14px;}
+  .url-input{
+    flex:1; background:var(--bg-inset); border:1px solid var(--border);
+    border-radius:8px; padding:13px 14px; color:var(--text); font-size:14.5px;
+    font-family:var(--font);
+  }
+  .url-input:focus{border-color:var(--signal); outline:none;}
+  .url-input::placeholder{color:var(--text-faint);}
+
+  .controls-row{display:flex; gap:10px; align-items:center;}
+  .lang-select{
+    background:var(--bg-inset); border:1px solid var(--border); border-radius:8px;
+    padding:12px 14px; color:var(--text); font-size:14px; font-family:var(--font);
+    min-width:180px; cursor:pointer;
+  }
+  .lang-select:focus{border-color:var(--signal); outline:none;}
+
+  .btn-primary{
+    flex:1; background:var(--signal); color:#0B1D1B; font-weight:600; font-size:14.5px;
+    padding:13px 20px; border-radius:8px; transition:filter .15s ease, transform .1s ease;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-primary:active{transform:scale(0.99);}
+  .btn-primary:disabled{background:var(--border); color:var(--text-faint); cursor:not-allowed;}
+
+  .spinner{
+    width:15px; height:15px; border-radius:50%;
+    border:2px solid rgba(11,29,27,0.25); border-top-color:#0B1D1B;
+    animation:spin 0.7s linear infinite; display:none;
+  }
+  .btn-primary.loading .spinner{display:inline-block;}
+  .btn-primary.loading .btn-label{display:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .status-line{
+    margin-top:12px; font-size:13px; color:var(--text-dim); font-family:var(--mono);
+    display:none;
+  }
+  .status-line.show{display:block;}
+  .status-line.error{color:var(--danger);}
+
+  .usage-bar-wrap{margin-top:16px; padding-top:16px; border-top:1px solid var(--border); display:none;}
+  .usage-bar-wrap.show{display:block;}
+  .usage-label{
+    display:flex; justify-content:space-between; font-size:12px; color:var(--text-faint);
+    font-family:var(--mono); margin-bottom:6px;
+  }
+  .usage-track{height:4px; background:var(--bg-inset); border-radius:2px; overflow:hidden;}
+  .usage-fill{height:100%; background:var(--signal); border-radius:2px; transition:width .3s ease;}
+
+  .result-card{
+    margin-top:18px; background:var(--bg-raised); border:1px solid var(--border);
+    border-radius:var(--radius); padding:22px; display:none;
+  }
+  .result-card.show{display:block;}
+  .result-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+  .result-title{font-size:13px; color:var(--text-faint); font-family:var(--mono);}
+  .copy-btn{
+    background:var(--bg-inset); border:1px solid var(--border); color:var(--text);
+    padding:7px 13px; border-radius:7px; font-size:13px; display:flex; align-items:center; gap:6px;
+    transition:border-color .15s ease;
+  }
+  .copy-btn:hover{border-color:var(--signal);}
+  .copy-btn.copied{border-color:var(--signal); color:var(--signal);}
+  .transcript-text{
+    font-size:15px; line-height:1.7; white-space:pre-wrap; color:var(--text);
+    max-height:420px; overflow-y:auto; padding-right:4px;
+  }
+  .transcript-text::-webkit-scrollbar{width:6px;}
+  .transcript-text::-webkit-scrollbar-thumb{background:var(--border); border-radius:3px;}
+
+  .pricing{margin-top:72px;}
+  .pricing-head{margin-bottom:28px;}
+  .pricing-head h2{font-size:24px; font-weight:600; letter-spacing:-0.02em;}
+  .pricing-head p{color:var(--text-dim); font-size:14.5px; margin-top:8px;}
+  .plans{display:flex; flex-direction:column; gap:12px;}
+  .plan{
+    border:1px solid var(--border); border-radius:var(--radius); padding:22px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:20px;
+    background:var(--bg-raised);
+  }
+  .plan.featured{
+    border-color:var(--signal); background:linear-gradient(180deg, var(--signal-dim), var(--bg-raised) 60%);
+    position:relative;
+  }
+  .plan.featured::before{
+    content:'MOST POPULAR'; position:absolute; top:-9px; left:20px;
+    background:var(--signal); color:#0B1D1B; font-size:10.5px; font-weight:700;
+    letter-spacing:0.04em; padding:3px 9px; border-radius:100px; font-family:var(--mono);
+  }
+  .plan-info h3{font-size:17px; font-weight:600;}
+  .plan-price{font-size:14px; color:var(--text-dim); margin-top:2px; font-family:var(--mono);}
+  .plan-price b{color:var(--text); font-size:17px; font-family:var(--font);}
+  .plan-features{list-style:none; margin-top:12px; display:flex; flex-direction:column; gap:6px;}
+  .plan-features li{font-size:13.5px; color:var(--text-dim); padding-left:16px; position:relative;}
+  .plan-features li::before{content:'—'; position:absolute; left:0; color:var(--text-faint);}
+  .plan-cta{
+    background:var(--bg-inset); border:1px solid var(--border); color:var(--text);
+    padding:10px 18px; border-radius:8px; font-size:13.5px; font-weight:500;
+    white-space:nowrap; transition:border-color .15s ease;
+  }
+  .plan.featured .plan-cta{background:var(--signal); color:#0B1D1B; border-color:var(--signal); font-weight:600;}
+  .plan-cta:hover{filter:brightness(1.05);}
+
+  footer{
+    max-width:680px; margin:80px auto 0; padding:24px; border-top:1px solid var(--border);
+    display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-faint);
+  }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(6,7,9,0.72); backdrop-filter:blur(3px);
+    display:none; align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{
+    background:var(--bg-raised); border:1px solid var(--border); border-radius:14px;
+    padding:28px; width:100%; max-width:380px; position:relative;
+  }
+  .modal h3{font-size:18px; font-weight:600; margin-bottom:4px;}
+  .modal p.sub{color:var(--text-dim); font-size:13.5px; margin-bottom:20px;}
+  .modal input{
+    width:100%; background:var(--bg-inset); border:1px solid var(--border); border-radius:8px;
+    padding:12px 14px; color:var(--text); font-size:14px; margin-bottom:10px; font-family:var(--font);
+  }
+  .modal input:focus{border-color:var(--signal); outline:none;}
+  .modal .btn-primary{width:100%; margin-top:6px;}
+  .modal-close{position:absolute; top:18px; right:18px; background:none; color:var(--text-faint); font-size:20px;}
+  .modal-toggle{text-align:center; margin-top:16px; font-size:13.5px; color:var(--text-dim);}
+  .modal-toggle a{color:var(--signal); cursor:pointer;}
+  .modal-error{color:var(--danger); font-size:13px; margin-bottom:10px; display:none;}
+  .modal-error.show{display:block;}
+  .modal-success{color:var(--signal); font-size:13px; margin-bottom:10px; display:none;}
+  .modal-success.show{display:block;}
+
+  @media (max-width:600px){
+    .hero h1{font-size:32px;}
+    .controls-row{flex-direction:column; align-items:stretch;}
+    .lang-select{width:100%;}
+    .plan{flex-direction:column;}
+    .plan-cta{width:100%; text-align:center;}
+    header.top{flex-wrap:wrap; gap:10px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" stroke="#0B1D1B" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="#0B1D1B"/></svg>
+    </div>
+    TranscribeAI
+  </div>
+  <div class="auth-area" id="authArea">
+    <span class="btn-ghost" onclick="openAuthModal('signin')">Sign in</span>
+    <button class="btn-signin" onclick="openAuthModal('signup')">Get started</button>
+  </div>
+</header>
+
+<div class="shell">
+
+  <section class="hero">
+    <h1>Turn any video into text, in seconds.</h1>
+    <p>Paste a link from TikTok, Instagram, Facebook or X. Pick a language. Get a clean transcript.</p>
+    <div class="platforms">
+      <span class="platform-tag">TikTok</span>
+      <span class="platform-tag">Instagram</span>
+      <span class="platform-tag">Facebook</span>
+      <span class="platform-tag">X / Twitter</span>
+    </div>
+  </section>
+
+  <div class="service-banner" id="serviceBanner" style="display:none;">
+    <span class="status-dot" id="serviceStatusDot"><span class="dot"></span><span id="serviceStatusText">Checking service status…</span></span>
+  </div>
+
+  <section class="card">
+    <label class="field-label">VIDEO LINK</label>
+    <div class="url-row">
+      <input type="text" class="url-input" id="urlInput" placeholder="https://www.tiktok.com/@user/video/...">
+    </div>
+
+    <label class="field-label">LANGUAGE</label>
+    <div class="controls-row">
+      <select class="lang-select" id="langSelect">
+        <option value="auto">Detect automatically</option>
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="es">Spanish</option>
+        <option value="ar">Arabic</option>
+        <option value="de">German</option>
+        <option value="it">Italian</option>
+        <option value="pt">Portuguese</option>
+        <option value="nl">Dutch</option>
+        <option value="ru">Russian</option>
+        <option value="zh">Chinese</option>
+        <option value="ja">Japanese</option>
+        <option value="ko">Korean</option>
+        <option value="tr">Turkish</option>
+        <option value="hi">Hindi</option>
+        <option value="pl">Polish</option>
+      </select>
+      <button class="btn-primary" id="transcribeBtn" onclick="handleTranscribe()">
+        <span class="spinner"></span>
+        <span class="btn-label">Transcribe</span>
+      </button>
+    </div>
+
+    <div class="status-line" id="statusLine"></div>
+
+    <div class="usage-bar-wrap" id="usageWrap">
+      <div class="usage-label">
+        <span>Usage this month</span>
+        <span id="usageText">0 / 30 min</span>
+      </div>
+      <div class="usage-track"><div class="usage-fill" id="usageFill" style="width:0%"></div></div>
+    </div>
+  </section>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-head">
+      <span class="result-title" id="resultMeta">TRANSCRIPT</span>
+      <button class="copy-btn" id="copyBtn" onclick="handleCopy()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span id="copyLabel">Copy</span>
+      </button>
+    </div>
+    <div class="transcript-text" id="transcriptText"></div>
+  </div>
+
+  <section class="pricing" id="pricing">
+    <div class="pricing-head">
+      <h2>Simple pricing</h2>
+      <p>Start free. Upgrade when you need more minutes and formats.</p>
+    </div>
+    <div class="plans">
+      <div class="plan">
+        <div class="plan-info">
+          <h3>Free</h3>
+          <div class="plan-price"><b>$0</b> / month</div>
+          <ul class="plan-features">
+            <li>30 min / month</li>
+            <li>Audio + video</li>
+            <li>TXT export</li>
+          </ul>
+        </div>
+        <button class="plan-cta" onclick="openAuthModal('signup')">Current plan</button>
+      </div>
+
+      <div class="plan featured">
+        <div class="plan-info">
+          <h3>Creator</h3>
+          <div class="plan-price"><b>$19</b> / month</div>
+          <ul class="plan-features">
+            <li>10 h / month</li>
+            <li>Audio + video</li>
+            <li>50+ languages</li>
+            <li>AI summary</li>
+            <li>TXT / DOCX / SRT</li>
+            <li>Speaker diarization</li>
+          </ul>
+        </div>
+        <button class="plan-cta" onclick="handleUpgradeClick('creator')">Upgrade</button>
+      </div>
+
+      <div class="plan">
+        <div class="plan-info">
+          <h3>Pro / Team</h3>
+          <div class="plan-price"><b>$49</b> / month</div>
+          <ul class="plan-features">
+            <li>30 h / month</li>
+            <li>Everything in Creator</li>
+            <li>Advanced subtitles</li>
+            <li>Advanced diarization</li>
+            <li>Team / multi-user</li>
+            <li>Priority processing</li>
+          </ul>
+        </div>
+        <button class="plan-cta" onclick="handleUpgradeClick('pro')">Upgrade</button>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <span>TranscribeAI</span>
+  <span>Built with Whisper · yt-dlp · Supabase</span>
+</footer>
+
+<div class="modal-overlay" id="authOverlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeAuthModal()">&times;</button>
+    <h3 id="authTitle">Sign in</h3>
+    <p class="sub" id="authSub">Welcome back.</p>
+    <div class="modal-error" id="authError"></div>
+    <div class="modal-success" id="authSuccess"></div>
+    <input type="email" id="authEmail" placeholder="Email">
+    <input type="password" id="authPassword" placeholder="Password">
+    <button class="btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">
+      <span class="spinner"></span>
+      <span class="btn-label">Sign in</span>
+    </button>
+    <div class="modal-toggle" id="authToggle">
+      No account? <a onclick="switchAuthMode()">Sign up</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://pulwpdgqcopnqzesnumj.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1bHdwZGdxY29wbnF6ZXNudW1qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg2MTgzNjIsImV4cCI6MjEwNDE5NDM2Mn0.Qido_icFbOHXhamsW3U4nY92awhecEhO7fIASN66oq8";
+const API_BASE = ""; // same-origin: page is served by the same Render service as the API
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let currentSession = null;
+let authMode = "signin";
+
+async function initSession() {
+  const { data } = await sb.auth.getSession();
+  currentSession = data.session;
+  updateAuthUI();
+  if (currentSession) loadProfile();
+}
+sb.auth.onAuthStateChange((_event, session) => {
+  currentSession = session;
+  updateAuthUI();
+  if (session) loadProfile();
+});
+
+function updateAuthUI() {
+  const area = document.getElementById('authArea');
+  if (currentSession) {
+    const email = currentSession.user.email;
+    area.innerHTML = `
+      <span class="pill">${email}</span>
+      <span class="btn-ghost" onclick="handleSignOut()">Sign out</span>
+    `;
+  } else {
+    area.innerHTML = `
+      <span class="btn-ghost" onclick="openAuthModal('signin')">Sign in</span>
+      <button class="btn-signin" onclick="openAuthModal('signup')">Get started</button>
+    `;
+    document.getElementById('usageWrap').classList.remove('show');
+  }
+}
+
+async function handleSignOut() {
+  await sb.auth.signOut();
+}
+
+function openAuthModal(mode) {
+  authMode = mode || 'signin';
+  applyAuthModeUI();
+  document.getElementById('authOverlay').classList.add('show');
+  document.getElementById('authError').classList.remove('show');
+  document.getElementById('authSuccess').classList.remove('show');
+}
+function closeAuthModal() {
+  document.getElementById('authOverlay').classList.remove('show');
+}
+function switchAuthMode() {
+  authMode = authMode === 'signin' ? 'signup' : 'signin';
+  applyAuthModeUI();
+}
+function applyAuthModeUI() {
+  document.getElementById('authTitle').textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
+  document.getElementById('authSub').textContent = authMode === 'signin' ? 'Welcome back.' : 'Start with 30 free minutes a month.';
+  document.getElementById('authSubmitBtn').querySelector('.btn-label').textContent = authMode === 'signin' ? 'Sign in' : 'Create account';
+  document.getElementById('authToggle').innerHTML = authMode === 'signin'
+    ? `No account? <a onclick="switchAuthMode()">Sign up</a>`
+    : `Already have an account? <a onclick="switchAuthMode()">Sign in</a>`;
+}
+
+async function handleAuthSubmit() {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errorEl = document.getElementById('authError');
+  const successEl = document.getElementById('authSuccess');
+  const btn = document.getElementById('authSubmitBtn');
+  errorEl.classList.remove('show');
+  successEl.classList.remove('show');
+
+  if (!email || !password) {
+    errorEl.textContent = "Enter an email and password.";
+    errorEl.classList.add('show');
+    return;
+  }
+
+  btn.classList.add('loading'); btn.disabled = true;
+  try {
+    if (authMode === 'signin') {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      closeAuthModal();
+    } else {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.session) {
+        closeAuthModal();
+      } else {
+        successEl.textContent = "Check your email to confirm your account, then sign in.";
+        successEl.classList.add('show');
+      }
+    }
+  } catch (err) {
+    errorEl.textContent = err.message || "Something went wrong.";
+    errorEl.classList.add('show');
+  } finally {
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
+
+async function checkServiceStatus() {
+  const banner = document.getElementById('serviceBanner');
+  const dot = document.getElementById('serviceStatusDot');
+  const text = document.getElementById('serviceStatusText');
+  try {
+    const res = await fetch(`${API_BASE}/api/whisper-status`);
+    const data = await res.json();
+    banner.style.display = 'flex';
+    if (data.available) {
+      banner.classList.remove('offline');
+      dot.classList.add('online'); dot.classList.remove('offline');
+      text.textContent = 'Transcription service is online';
+    } else {
+      banner.classList.add('offline');
+      dot.classList.add('offline'); dot.classList.remove('online');
+      text.textContent = 'Transcription service is temporarily offline — please try again later';
+    }
+  } catch (e) {
+    banner.style.display = 'flex';
+    banner.classList.add('offline');
+    text.textContent = 'Could not reach the transcription service';
+  }
+}
+
+async function loadProfile() {
+  if (!currentSession) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/me`, {
+      headers: { Authorization: `Bearer ${currentSession.access_token}` }
+    });
+    if (!res.ok) return;
+    const profile = await res.json();
+    const limit = profile.minutes_limit || 30;
+    const used = profile.minutes_used_this_period || 0;
+    const pct = Math.min(100, (used / limit) * 100);
+
+    document.getElementById('usageWrap').classList.add('show');
+    document.getElementById('usageText').textContent = `${used.toFixed(1)} / ${limit} min · ${profile.plan}`;
+    document.getElementById('usageFill').style.width = `${pct}%`;
+  } catch (e) { /* silent */ }
+}
+
+async function handleTranscribe() {
+  const url = document.getElementById('urlInput').value.trim();
+  const language = document.getElementById('langSelect').value;
+  const statusLine = document.getElementById('statusLine');
+  const btn = document.getElementById('transcribeBtn');
+
+  statusLine.classList.remove('show', 'error');
+
+  if (!url) {
+    statusLine.textContent = 'Paste a video link first.';
+    statusLine.classList.add('show', 'error');
+    return;
+  }
+  if (!currentSession) {
+    openAuthModal('signup');
+    return;
+  }
+
+  btn.classList.add('loading'); btn.disabled = true;
+  statusLine.textContent = 'Downloading and transcribing — this can take a minute for longer videos…';
+  statusLine.classList.add('show');
+  document.getElementById('resultCard').classList.remove('show');
+
+  try {
+    const res = await fetch(`${API_BASE}/api/transcribe`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${currentSession.access_token}`
+      },
+      body: JSON.stringify({ url, language })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Transcription failed.');
+
+    document.getElementById('transcriptText').textContent = data.transcript;
+    document.getElementById('resultMeta').textContent = `TRANSCRIPT · ${data.platform.toUpperCase()} · ${Math.round(data.duration_seconds || 0)}s`;
+    document.getElementById('resultCard').classList.add('show');
+    statusLine.classList.remove('show');
+    loadProfile();
+  } catch (err) {
+    statusLine.textContent = err.message;
+    statusLine.classList.add('show', 'error');
+  } finally {
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
+
+function handleCopy() {
+  const text = document.getElementById('transcriptText').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    const label = document.getElementById('copyLabel');
+    btn.classList.add('copied');
+    label.textContent = 'Copied';
+    setTimeout(() => { btn.classList.remove('copied'); label.textContent = 'Copy'; }, 1800);
+  });
+}
+
+function handleUpgradeClick(plan) {
+  if (!currentSession) { openAuthModal('signup'); return; }
+  alert('Payments are coming soon — this plan is not yet purchasable.');
+}
+
+initSession();
+checkServiceStatus();
+setInterval(checkServiceStatus, 30000);
+</script>
+</body>
+</html>

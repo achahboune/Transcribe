@@ -15,8 +15,11 @@ This service does NOT run Whisper. It:
 """
 import asyncio
 import httpx
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, HttpUrl
 
 from .config import settings, PLAN_LIMITS_MINUTES
@@ -33,6 +36,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve the frontend (frontend/index.html) at the root — this avoids the
+# artifact/claude.ai CSP that blocks fetch() calls to external APIs like
+# Supabase. Served from the same origin as the API, so no CORS issues either.
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+if FRONTEND_DIR.exists():
+    @app.get("/")
+    def serve_index():
+        return FileResponse(str(FRONTEND_DIR / "index.html"))
+
 
 
 class TranscribeRequest(BaseModel):

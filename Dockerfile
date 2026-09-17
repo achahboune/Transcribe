@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir -U "yt-dlp[default]" curl_cffi
 
 COPY app ./app
+COPY frontend ./frontend
 
 EXPOSE 8080
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
