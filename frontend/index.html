@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
   :root{
     --bg: #0F1115;
@@ -211,6 +212,8 @@
   }
   .plan.featured .plan-cta{background:var(--signal); color:#0B1D1B; border-color:var(--signal); font-weight:600;}
   .plan-cta:hover{filter:brightness(1.05);}
+  .paypal-btn-wrap{margin-top:14px; min-height:35px;}
+  .paypal-btn-wrap.disabled{opacity:0.4; pointer-events:none;}
 
   footer{
     max-width:680px; margin:80px auto 0; padding:24px; border-top:1px solid var(--border);
@@ -341,7 +344,7 @@
   <section class="pricing" id="pricing">
     <div class="pricing-head">
       <h2>Simple pricing</h2>
-      <p>Start free. Upgrade when you need more minutes and formats.</p>
+      <p>Start free. Upgrade when you need more minutes and formats. <span style="color:var(--text-faint)">Beta launch pricing.</span></p>
     </div>
     <div class="plans">
       <div class="plan">
@@ -360,7 +363,7 @@
       <div class="plan featured">
         <div class="plan-info">
           <h3>Creator</h3>
-          <div class="plan-price"><b>$19</b> / month</div>
+          <div class="plan-price"><b>$9</b> / month</div>
           <ul class="plan-features">
             <li>10 h / month</li>
             <li>Audio + video</li>
@@ -369,14 +372,14 @@
             <li>TXT / DOCX / SRT</li>
             <li>Speaker diarization</li>
           </ul>
+          <div class="paypal-btn-wrap" id="paypal-btn-creator"></div>
         </div>
-        <button class="plan-cta" onclick="handleUpgradeClick('creator')">Upgrade</button>
       </div>
 
       <div class="plan">
         <div class="plan-info">
           <h3>Pro / Team</h3>
-          <div class="plan-price"><b>$49</b> / month</div>
+          <div class="plan-price"><b>$19</b> / month</div>
           <ul class="plan-features">
             <li>30 h / month</li>
             <li>Everything in Creator</li>
@@ -385,8 +388,8 @@
             <li>Team / multi-user</li>
             <li>Priority processing</li>
           </ul>
+          <div class="paypal-btn-wrap" id="paypal-btn-pro"></div>
         </div>
-        <button class="plan-cta" onclick="handleUpgradeClick('pro')">Upgrade</button>
       </div>
     </div>
   </section>
@@ -627,29 +630,77 @@ function handleCopy() {
 
 async function handleUpgradeClick(plan) {
   if (!currentSession) { openAuthModal('signup'); return; }
+  alert('Please use the Subscribe button below the plan you want.');
+}
+
+// ---------- PayPal Subscriptions ----------
+const PAYPAL_CLIENT_ID = "BAAL2C15N0atVebP9E7HkwDay036bqFhfxb2VQ22ecmIDTW4u3r-4YH9jFSYn_1j7AwwQNi_lIZCxN68AE";
+const PAYPAL_PLAN_IDS = {
+  creator: "P-1NS007233J823353LNKWQJPQ",
+  pro: "P-49833516L7047143LNKWQMCY"
+};
+
+function loadPayPalSdk() {
+  return new Promise((resolve, reject) => {
+    if (window.paypal) { resolve(window.paypal); return; }
+    const script = document.createElement('script');
+    script.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&vault=true&intent=subscription`;
+    script.onload = () => resolve(window.paypal);
+    script.onerror = () => reject(new Error('Could not load PayPal.'));
+    document.head.appendChild(script);
+  });
+}
+
+async function renderPayPalButtons() {
   try {
-    const res = await fetch(`${API_BASE}/api/billing/create-checkout-session`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${currentSession.access_token}`
-      },
-      body: JSON.stringify({ plan })
+    const paypal = await loadPayPalSdk();
+    ['creator', 'pro'].forEach(plan => {
+      const container = document.getElementById(`paypal-btn-${plan}`);
+      if (!container) return;
+      container.innerHTML = '';
+      paypal.Buttons({
+        style: { shape: 'rect', color: plan === 'creator' ? 'gold' : 'black', layout: 'horizontal', label: 'subscribe', height: 40 },
+        createSubscription: function (data, actions) {
+          if (!currentSession) {
+            openAuthModal('signup');
+            return Promise.reject(new Error('Not signed in'));
+          }
+          return actions.subscription.create({ plan_id: PAYPAL_PLAN_IDS[plan] });
+        },
+        onApprove: async function (data) {
+          try {
+            const res = await fetch(`${API_BASE}/api/billing/confirm-subscription`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${currentSession.access_token}`
+              },
+              body: JSON.stringify({ subscription_id: data.subscriptionID, plan })
+            });
+            if (res.ok) {
+              alert(`Subscribed to ${plan === 'creator' ? 'Creator' : 'Pro'}! Your plan is now active.`);
+              loadProfile();
+            } else {
+              alert('Payment approved, but activating your plan failed. Contact support with this ID: ' + data.subscriptionID);
+            }
+          } catch (e) {
+            alert('Payment approved, but activating your plan failed. Contact support with this ID: ' + data.subscriptionID);
+          }
+        },
+        onError: function () {
+          alert('Something went wrong with PayPal. Please try again.');
+        }
+      }).render(`#paypal-btn-${plan}`);
     });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.detail || 'Could not start checkout. Please try again.');
-      return;
-    }
-    window.location.href = data.checkout_url;
   } catch (e) {
-    alert('Could not start checkout. Please try again.');
+    console.warn('PayPal buttons could not be loaded.');
   }
 }
 
 initSession();
 checkServiceStatus();
 setInterval(checkServiceStatus, 30000);
+renderPayPalButtons();
 </script>
 </body>
 </html>

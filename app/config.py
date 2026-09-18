@@ -7,13 +7,13 @@ class Settings(BaseSettings):
     supabase_url: str
     supabase_service_key: str
 
-    # Stripe — leave placeholders until the real dashboard keys are available.
-    # The app still starts fine with placeholders; billing endpoints will
-    # just return a clear error until real keys are set.
-    stripe_secret_key: str = "sk_test_placeholder"
-    stripe_webhook_secret: str = "whsec_placeholder"
-    stripe_price_creator: str = "price_placeholder_creator"
-    stripe_price_pro: str = "price_placeholder_pro"
+    # PayPal Subscriptions — sandbox by default. Empty client_secret means
+    # billing endpoints return a clear 501 instead of crashing.
+    paypal_env: str = "sandbox"  # "sandbox" or "live"
+    paypal_client_id: str = ""
+    paypal_client_secret: str = ""
+    paypal_plan_creator: str = ""  # P-XXXXXXXXXXXXXXXXXXXX
+    paypal_plan_pro: str = ""      # P-XXXXXXXXXXXXXXXXXXXX
     frontend_url: str = "https://transcribe-u5sf.onrender.com"
 
     max_job_seconds: int = 900  # 15 min hard cap per video for the MVP

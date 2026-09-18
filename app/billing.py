@@ -1,45 +1,60 @@
 """
-Stripe billing.
+PayPal Subscriptions billing.
 
-Two endpoints:
-- POST /api/billing/create-checkout-session — logged-in user picks a plan,
-  gets redirected to Stripe's hosted checkout page.
-- POST /api/billing/webhook — Stripe calls this after a successful payment
-  (or cancellation) to tell us to update the user's plan in Supabase.
+Flow:
+1. Frontend renders PayPal Subscribe buttons (JS SDK) for the Creator/Pro plans.
+2. User approves the subscription in the PayPal popup — PayPal returns a
+   subscription_id to the frontend.
+3. Frontend calls POST /api/billing/confirm-subscription with that ID.
+4. This backend verifies the subscription directly with PayPal's API
+   (never trusts the frontend blindly) — checks it's ACTIVE and belongs
+   to the plan claimed — then updates the user's plan in Supabase.
 
-Until real Stripe keys are set (see config.py), create-checkout-session
-returns a clear 501 error instead of crashing, so the rest of the app
-keeps working normally.
+PayPal webhooks (for renewals/cancellations) can be added later; for the
+MVP, confirm-subscription handles the initial upgrade, which is the main
+flow that matters first.
 """
-import stripe
 import httpx
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
 from .config import settings
-from .auth import get_current_user, get_profile
+from .auth import get_current_user
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
-stripe.api_key = settings.stripe_secret_key
-
-PRICE_IDS = {
-    "creator": settings.stripe_price_creator,
-    "pro": settings.stripe_price_pro,
-}
-
-PLACEHOLDER_MARKERS = ("placeholder",)
+PAYPAL_API_BASE = "https://api-m.sandbox.paypal.com" if settings.paypal_env == "sandbox" else "https://api-m.paypal.com"
 
 
-def _stripe_configured() -> bool:
-    return not any(m in settings.stripe_secret_key for m in PLACEHOLDER_MARKERS)
+def _plan_id_to_name():
+    return {
+        settings.paypal_plan_creator: "creator",
+        settings.paypal_plan_pro: "pro",
+    }
 
 
-class CheckoutRequest(BaseModel):
-    plan: str  # "creator" or "pro"
+def _paypal_configured() -> bool:
+    return bool(settings.paypal_client_id and settings.paypal_client_secret)
 
 
-async def _update_profile_stripe_customer(user_id: str, customer_id: str):
+class ConfirmSubscriptionRequest(BaseModel):
+    subscription_id: str
+    plan: str  # "creator" or "pro" — what the frontend claims; we verify against PayPal
+
+
+async def _get_paypal_access_token() -> str:
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            f"{PAYPAL_API_BASE}/v1/oauth2/token",
+            auth=(settings.paypal_client_id, settings.paypal_client_secret),
+            data={"grant_type": "client_credentials"},
+        )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not authenticate with PayPal.")
+    return resp.json()["access_token"]
+
+
+async def _update_profile_plan(user_id: str, plan: str, paypal_subscription_id: str):
     async with httpx.AsyncClient(timeout=10) as client:
         await client.patch(
             f"{settings.supabase_url}/rest/v1/profiles",
@@ -50,129 +65,44 @@ async def _update_profile_stripe_customer(user_id: str, customer_id: str):
                 "Content-Type": "application/json",
                 "Prefer": "return=minimal",
             },
-            json={"stripe_customer_id": customer_id},
-        )
-
-
-async def _set_plan_by_customer_id(customer_id: str, plan: str, reset_usage: bool = True):
-    payload = {"plan": plan}
-    if reset_usage:
-        payload["minutes_used_this_period"] = 0
-    async with httpx.AsyncClient(timeout=10) as client:
-        await client.patch(
-            f"{settings.supabase_url}/rest/v1/profiles",
-            params={"stripe_customer_id": f"eq.{customer_id}"},
-            headers={
-                "apikey": settings.supabase_service_key,
-                "Authorization": f"Bearer {settings.supabase_service_key}",
-                "Content-Type": "application/json",
-                "Prefer": "return=minimal",
+            json={
+                "plan": plan,
+                "minutes_used_this_period": 0,
+                "paypal_subscription_id": paypal_subscription_id,
             },
-            json=payload,
         )
 
 
-@router.post("/create-checkout-session")
-async def create_checkout_session(payload: CheckoutRequest, user=Depends(get_current_user)):
-    if not _stripe_configured():
-        raise HTTPException(
-            status_code=501,
-            detail="Payments are not configured yet. Please try again later.",
+@router.post("/confirm-subscription")
+async def confirm_subscription(payload: ConfirmSubscriptionRequest, user=Depends(get_current_user)):
+    if not _paypal_configured():
+        raise HTTPException(status_code=501, detail="Payments are not configured yet.")
+
+    if payload.plan not in ("creator", "pro"):
+        raise HTTPException(status_code=400, detail="Invalid plan.")
+
+    # Verify the subscription directly with PayPal — never trust the frontend alone.
+    token = await _get_paypal_access_token()
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{PAYPAL_API_BASE}/v1/billing/subscriptions/{payload.subscription_id}",
+            headers={"Authorization": f"Bearer {token}"},
         )
 
-    if payload.plan not in PRICE_IDS:
-        raise HTTPException(status_code=400, detail="Invalid plan")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=400, detail="Could not verify this subscription with PayPal.")
 
-    profile = await get_profile(user["id"])
-    customer_id = profile.get("stripe_customer_id")
+    sub = resp.json()
+    status = sub.get("status")
+    plan_id = sub.get("plan_id")
 
-    if not customer_id:
-        customer = stripe.Customer.create(email=user["email"], metadata={"supabase_user_id": user["id"]})
-        customer_id = customer.id
-        await _update_profile_stripe_customer(user["id"], customer_id)
+    if status != "ACTIVE":
+        raise HTTPException(status_code=400, detail=f"Subscription is not active yet (status: {status}).")
 
-    session = stripe.checkout.Session.create(
-        customer=customer_id,
-        mode="subscription",
-        line_items=[{"price": PRICE_IDS[payload.plan], "quantity": 1}],
-        success_url=f"{settings.frontend_url}/?checkout=success",
-        cancel_url=f"{settings.frontend_url}/?checkout=cancelled",
-        metadata={"supabase_user_id": user["id"], "plan": payload.plan},
-    )
-    return {"checkout_url": session.url}
+    real_plan = _plan_id_to_name().get(plan_id)
+    if not real_plan:
+        raise HTTPException(status_code=400, detail="Unrecognized PayPal plan.")
 
+    await _update_profile_plan(user["id"], real_plan, payload.subscription_id)
 
-@router.post("/create-portal-session")
-async def create_portal_session(user=Depends(get_current_user)):
-    if not _stripe_configured():
-        raise HTTPException(status_code=501, detail="Payments are not configured yet.")
-
-    profile = await get_profile(user["id"])
-    customer_id = profile.get("stripe_customer_id")
-    if not customer_id:
-        raise HTTPException(status_code=400, detail="No billing account found")
-
-    session = stripe.billing_portal.Session.create(
-        customer=customer_id,
-        return_url=f"{settings.frontend_url}/",
-    )
-    return {"portal_url": session.url}
-
-
-@router.post("/webhook")
-async def stripe_webhook(request: Request):
-    if not _stripe_configured():
-        raise HTTPException(status_code=501, detail="Payments are not configured yet.")
-
-    payload = await request.body()
-    sig_header = request.headers.get("stripe-signature")
-
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, settings.stripe_webhook_secret)
-    except (ValueError, stripe.error.SignatureVerificationError):
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
-
-    event_type = event["type"]
-    data = event["data"]["object"]
-
-    if event_type == "checkout.session.completed":
-        user_id = data["metadata"].get("supabase_user_id")
-        plan = data["metadata"].get("plan")
-        if user_id and plan:
-            # Direct update by user id here since we have it from metadata.
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.patch(
-                    f"{settings.supabase_url}/rest/v1/profiles",
-                    params={"id": f"eq.{user_id}"},
-                    headers={
-                        "apikey": settings.supabase_service_key,
-                        "Authorization": f"Bearer {settings.supabase_service_key}",
-                        "Content-Type": "application/json",
-                        "Prefer": "return=minimal",
-                    },
-                    json={"plan": plan, "minutes_used_this_period": 0},
-                )
-
-    elif event_type == "customer.subscription.deleted":
-        customer_id = data.get("customer")
-        if customer_id:
-            await _set_plan_by_customer_id(customer_id, "free", reset_usage=False)
-
-    elif event_type == "invoice.paid":
-        # Monthly renewal — reset usage counter for the existing plan.
-        customer_id = data.get("customer")
-        if customer_id:
-            async with httpx.AsyncClient(timeout=10) as client:
-                await client.patch(
-                    f"{settings.supabase_url}/rest/v1/profiles",
-                    params={"stripe_customer_id": f"eq.{customer_id}"},
-                    headers={
-                        "apikey": settings.supabase_service_key,
-                        "Authorization": f"Bearer {settings.supabase_service_key}",
-                        "Content-Type": "application/json",
-                        "Prefer": "return=minimal",
-                    },
-                    json={"minutes_used_this_period": 0},
-                )
-
-    return {"status": "ok"}
+    return {"plan": real_plan, "status": "active"}
