@@ -408,8 +408,8 @@
     <p class="sub" id="authSub">Welcome back.</p>
     <div class="modal-error" id="authError"></div>
     <div class="modal-success" id="authSuccess"></div>
-    <input type="email" id="authEmail" placeholder="Email" autocomplete="off">
-    <input type="password" id="authPassword" placeholder="Password" autocomplete="new-password">
+    <input type="email" id="authEmail" name="ta_email_field" placeholder="Email" autocomplete="off">
+    <input type="password" id="authPassword" name="ta_password_field" placeholder="Password" autocomplete="new-password">
     <button class="btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">
       <span class="spinner"></span>
       <span class="btn-label">Sign in</span>
@@ -470,6 +470,13 @@ function openAuthModal(mode) {
   document.getElementById('authOverlay').classList.add('show');
   document.getElementById('authError').classList.remove('show');
   document.getElementById('authSuccess').classList.remove('show');
+  clearAuthFields();
+  // Chrome sometimes autofills the password field slightly after the modal
+  // opens, overriding the immediate clear above — clear again a moment later.
+  setTimeout(clearAuthFields, 60);
+  setTimeout(clearAuthFields, 300);
+}
+function clearAuthFields() {
   document.getElementById('authEmail').value = '';
   document.getElementById('authPassword').value = '';
 }
