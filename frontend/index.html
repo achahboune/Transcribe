@@ -408,8 +408,8 @@
     <p class="sub" id="authSub">Welcome back.</p>
     <div class="modal-error" id="authError"></div>
     <div class="modal-success" id="authSuccess"></div>
-    <input type="email" id="authEmail" placeholder="Email">
-    <input type="password" id="authPassword" placeholder="Password">
+    <input type="email" id="authEmail" placeholder="Email" autocomplete="off">
+    <input type="password" id="authPassword" placeholder="Password" autocomplete="new-password">
     <button class="btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">
       <span class="spinner"></span>
       <span class="btn-label">Sign in</span>
@@ -470,6 +470,8 @@ function openAuthModal(mode) {
   document.getElementById('authOverlay').classList.add('show');
   document.getElementById('authError').classList.remove('show');
   document.getElementById('authSuccess').classList.remove('show');
+  document.getElementById('authEmail').value = '';
+  document.getElementById('authPassword').value = '';
 }
 function closeAuthModal() {
   document.getElementById('authOverlay').classList.remove('show');
