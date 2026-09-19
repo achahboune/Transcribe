@@ -83,8 +83,8 @@
 
   .hero{padding:8px 0 28px;}
   .hero h1{
-    font-size:40px; font-weight:600; letter-spacing:-0.03em; line-height:1.12;
-    max-width:520px;
+    font-size:clamp(26px, 5.5vw, 40px); font-weight:600; letter-spacing:-0.03em; line-height:1.15;
+    max-width:560px; white-space:nowrap;
   }
   .hero p{color:var(--text-dim); font-size:16px; margin-top:14px; max-width:460px;}
   .platforms{display:flex; gap:8px; margin-top:22px; flex-wrap:wrap;}
@@ -221,7 +221,7 @@
   }
 
   .modal-overlay{
-    position:fixed; inset:0; background:rgba(6,7,9,0.72); backdrop-filter:blur(3px);
+    position:fixed; inset:0; background:rgba(6,7,9,0.88); backdrop-filter:blur(6px);
     display:none; align-items:center; justify-content:center; z-index:50; padding:20px;
   }
   .modal-overlay.show{display:flex;}
@@ -246,12 +246,29 @@
   .modal-success.show{display:block;}
 
   @media (max-width:600px){
-    .hero h1{font-size:32px;}
+    .shell{padding:0 16px 100px;}
+    header.top{padding:20px 16px 28px; flex-wrap:nowrap;}
+    .logo{font-size:14px; gap:8px;}
+    .auth-area{gap:8px;}
+    .pill{max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    .btn-signin{padding:8px 12px; font-size:13px;}
+    .hero{padding:4px 0 22px;}
+    .hero p{font-size:14.5px;}
+    .platforms{gap:6px;}
+    .platform-tag{font-size:11px; padding:4px 8px;}
+    .card{padding:18px;}
     .controls-row{flex-direction:column; align-items:stretch;}
     .lang-select{width:100%;}
-    .plan{flex-direction:column;}
+    .plan{flex-direction:column; padding:20px;}
     .plan-cta{width:100%; text-align:center;}
-    header.top{flex-wrap:wrap; gap:10px;}
+    .service-banner{font-size:12px; padding:10px 12px;}
+    .result-card{padding:18px;}
+    footer{flex-direction:column; gap:6px; text-align:center; margin-top:56px;}
+  }
+
+  @media (max-width:380px){
+    .hero h1{letter-spacing:-0.02em;}
+    .plan-price b{font-size:22px;}
   }
 </style>
 </head>
@@ -398,7 +415,7 @@
 
 <footer>
   <span>TranscribeAI</span>
-  <span>Built with Whisper · yt-dlp · Supabase</span>
+  <span>Tangier, Morocco</span>
 </footer>
 
 <div class="modal-overlay" id="authOverlay">
