@@ -1,6 +1,6 @@
 # TranscribeAI Orchestrator — lightweight image for Render.
-# No Whisper here: transcription happens on Alaa's local machine,
-# reached through the Cloudflare tunnel URL stored in Supabase.
+# Transcription runs via Groq's cloud-hosted Whisper (free tier) —
+# no dependency on any local machine being on.
 
 FROM python:3.11-slim
 

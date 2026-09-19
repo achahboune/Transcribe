@@ -14,7 +14,7 @@
     --bg-raised: #161920;
     --bg-inset: #0B0D11;
     --border: #262B35;
-    --text: #E8EAED;
+    --text: #D9DCE1;
     --text-dim: #8B92A0;
     --text-faint: #565D6B;
     --signal: #5EEAD4;
@@ -26,14 +26,17 @@
     --mono: 'JetBrains Mono', monospace;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
-  html{scroll-behavior:smooth;}
+  html{scroll-behavior:smooth; overflow-x:hidden;}
   body{
     background:var(--bg);
     color:var(--text);
     font-family:var(--font);
     line-height:1.5;
     -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+    text-rendering:optimizeLegibility;
     min-height:100vh;
+    overflow-x:hidden;
   }
   a{color:inherit;}
   ::selection{background:var(--signal); color:#0F1115;}

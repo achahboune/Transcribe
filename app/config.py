@@ -2,10 +2,14 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Supabase — used to read/write the tunnel_url row, and now also for
-    # verifying user sessions and reading/writing their profile (plan, quota).
+    # Supabase — used for verifying user sessions and reading/writing their
+    # profile (plan, quota).
     supabase_url: str
     supabase_service_key: str
+
+    # Groq — hosts Whisper in the cloud (free tier), so transcription no
+    # longer depends on Alaa's local machine being on.
+    groq_api_key: str = ""
 
     # PayPal Subscriptions — sandbox by default. Empty client_secret means
     # billing endpoints return a clear 501 instead of crashing.
@@ -17,7 +21,6 @@ class Settings(BaseSettings):
     frontend_url: str = "https://transcribe-u5sf.onrender.com"
 
     max_job_seconds: int = 900  # 15 min hard cap per video for the MVP
-    whisper_call_timeout: int = 600  # generous — long videos take time to transcribe
 
     class Config:
         env_file = ".env"

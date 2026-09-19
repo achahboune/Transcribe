@@ -50,11 +50,13 @@ def download_audio(url: str, max_duration_seconds: int = 900) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Download audio as 16kHz mono WAV (what whisper/faster-whisper expects)
+    # Download audio as MP3 (much smaller than WAV — keeps files comfortably
+    # under Groq's 25MB free-tier limit even for a full 15-30 min video).
+    # 16kHz mono at 64kbps is plenty for speech recognition accuracy.
     dl_cmd = [
         "yt-dlp", "--no-warnings",
         "-f", "bestaudio/best",
-        "--extract-audio", "--audio-format", "wav",
+        "--extract-audio", "--audio-format", "mp3", "--audio-quality", "64K",
         "--postprocessor-args", "ffmpeg:-ar 16000 -ac 1",
         "-o", output_template,
         url,
@@ -68,12 +70,12 @@ def download_audio(url: str, max_duration_seconds: int = 900) -> dict:
         stderr_tail = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "unknown error"
         raise DownloadError(f"Could not download this link ({stderr_tail}). It may be private or unavailable.")
 
-    wav_files = list(job_dir.glob("*.wav"))
-    if not wav_files:
+    audio_files = list(job_dir.glob("*.mp3"))
+    if not audio_files:
         raise DownloadError("Download succeeded but no audio track was produced.")
 
     return {
-        "wav_path": str(wav_files[0]),
+        "wav_path": str(audio_files[0]),
         "duration_seconds": duration,
         "title": title,
         "job_dir": str(job_dir),
