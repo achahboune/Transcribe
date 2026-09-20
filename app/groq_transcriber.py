@@ -48,6 +48,13 @@ async def transcribe_audio(wav_path: str, language: str = "auto") -> dict:
     data = {"model": GROQ_MODEL, "response_format": "verbose_json"}
     if language and language != "auto":
         data["language"] = language
+        # Whisper's optional "prompt" primes it with expected vocabulary/style.
+        # For Arabic, priming it with common Darija (Moroccan dialect) words
+        # and code-switched French terms measurably helps recognition —
+        # Whisper otherwise tends to default toward Modern Standard Arabic
+        # spellings that don't match how Darija is actually spoken/written.
+        if language == "ar":
+            data["prompt"] = DARIJA_VOCAB_PROMPT
 
     try:
         with open(wav_path, "rb") as f:
@@ -89,6 +96,15 @@ async def transcribe_audio(wav_path: str, language: str = "auto") -> dict:
     }
 
 
+# A short sample of Darija (Moroccan Arabic) vocabulary and code-switched
+# French/Darija phrasing, used to prime Whisper's recognition toward the
+# dialect instead of Modern Standard Arabic. This is not meant to appear
+# verbatim in output — it just steers word choice and spelling style.
+DARIJA_VOCAB_PROMPT = (
+    "بزاف, واخا, دابا, شحال, بغيت, ماشي, هاد الشي, كاين, "
+    "زعما, صافي, يالله نمشيو, كيفاش, علاش, فين"
+)
+
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 CORRECTION_MODEL = "allam-2-7b"  # SDAIA's Arabic-specialized model — better suited
                                   # for correcting Arabic ASR output than a general LLM
@@ -101,14 +117,18 @@ async def _correct_arabic_text(text: str) -> str:
     inconsistencies) — without changing the meaning or paraphrasing.
     """
     prompt = (
-        "The following is a raw speech-to-text transcript in Arabic. "
+        "The following is a raw speech-to-text transcript in Arabic. It is "
+        "likely Moroccan Darija (Moroccan Arabic dialect), which commonly "
+        "mixes in French and Amazigh/Berber words and differs from Modern "
+        "Standard Arabic in vocabulary and spelling conventions. "
         "It may contain misrecognized words typical of automatic speech "
-        "recognition errors, especially for Moroccan/Maghrebi dialect. "
+        "recognition errors. "
         "Correct only clear transcription mistakes (wrong words that don't "
         "make sense in context, obvious mis-hearings). Do NOT paraphrase, "
-        "summarize, translate, or change the meaning or dialect. Preserve "
-        "the original wording wherever it is plausible. Return ONLY the "
-        "corrected text, nothing else.\n\n"
+        "summarize, translate to Modern Standard Arabic, or change the "
+        "meaning or dialect — preserve Darija wording and any French/Berber "
+        "words exactly as spoken. Return ONLY the corrected text, nothing "
+        "else.\n\n"
         f"Transcript:\n{text}"
     )
 
