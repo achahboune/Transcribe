@@ -10,13 +10,13 @@
 
 <style>
   :root{
-    --bg: #F7F8F6;
+    --bg: #82CAFF;
     --bg-raised: #FFFFFF;
-    --bg-inset: #F0F2EF;
-    --border: #E2E5E0;
-    --text: #14181A;
-    --text-dim: #5B6360;
-    --text-faint: #7C8480;
+    --bg-inset: #F0F6FF;
+    --border: #B8DDFF;
+    --text: #1A1A1A;
+    --text-dim: #333333;
+    --text-faint: #4D4D4D;
     --signal: #0D7A6C;
     --signal-soft: #E3F2EE;
     --signal-text-on: #FFFFFF;
@@ -26,7 +26,7 @@
     --radius: 10px;
     --font: 'Space Grotesk', sans-serif;
     --mono: 'JetBrains Mono', monospace;
-    --shadow: 0 1px 2px rgba(20,24,26,0.04), 0 2px 8px rgba(20,24,26,0.04);
+    --shadow: 0 1px 2px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.06);
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html{scroll-behavior:smooth; overflow-x:hidden;}
@@ -44,10 +44,10 @@
   a{color:inherit;}
   ::selection{background:var(--signal); color:#FFFFFF;}
 
-  .shell{max-width:680px; margin:0 auto; padding:0 24px 120px;}
+  .shell{max-width:960px; margin:0 auto; padding:0 24px 120px;}
   header.top{
     display:flex; align-items:center; justify-content:space-between;
-    max-width:680px; margin:0 auto; padding:28px 24px 40px;
+    max-width:960px; margin:0 auto; padding:28px 24px 40px;
   }
   .logo{
     display:flex; align-items:center; gap:10px;
@@ -196,6 +196,11 @@
     display:flex; justify-content:space-between; align-items:flex-start; gap:20px;
     background:var(--bg-raised);
   }
+  @media (min-width:900px){
+    .plans{display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; align-items:stretch;}
+    .plan{flex-direction:column; align-items:stretch; gap:16px;}
+    .plan-cta{width:100%; text-align:center;}
+  }
   .plan.featured{
     border-color:var(--signal); background:var(--signal-soft);
     position:relative;
@@ -222,7 +227,7 @@
   .paypal-btn-wrap.disabled{opacity:0.4; pointer-events:none;}
 
   footer{
-    max-width:680px; margin:80px auto 0; padding:24px; border-top:1px solid var(--border);
+    max-width:960px; margin:80px auto 0; padding:24px; border-top:1px solid var(--border);
     display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-faint);
   }
 
