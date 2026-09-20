@@ -92,7 +92,7 @@
     font-size:clamp(26px, 5.5vw, 40px); font-weight:600; letter-spacing:-0.03em; line-height:1.15;
     max-width:560px; white-space:nowrap;
   }
-  .hero p{color:var(--text-dim); font-size:16px; margin-top:14px; max-width:460px;}
+  .hero p{color:var(--text); font-size:clamp(11px, 2.6vw, 16px); margin-top:14px; white-space:nowrap;}
   .platforms{display:flex; gap:8px; margin-top:22px; flex-wrap:wrap;}
   .platform-tag{
     font-family:var(--mono); font-size:12px; color:var(--text-faint);
@@ -132,9 +132,10 @@
   .lang-select:focus{border-color:var(--signal); outline:none;}
 
   .btn-primary{
-    flex:1; background:var(--signal); color:#FFFFFF; font-weight:600; font-size:14.5px;
-    padding:13px 20px; border-radius:8px; transition:filter .15s ease, transform .1s ease;
+    background:var(--signal); color:#FFFFFF; font-weight:600; font-size:14px;
+    padding:11px 22px; border-radius:8px; transition:filter .15s ease, transform .1s ease;
     display:flex; align-items:center; justify-content:center; gap:8px;
+    flex:0 0 auto; white-space:nowrap;
   }
   .btn-primary:hover{filter:brightness(1.08);}
   .btn-primary:active{transform:scale(0.99);}
@@ -264,7 +265,6 @@
     .pill{max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
     .btn-signin{padding:8px 12px; font-size:13px;}
     .hero{padding:4px 0 22px;}
-    .hero p{font-size:14.5px;}
     .platforms{gap:6px;}
     .platform-tag{font-size:11px; padding:4px 8px;}
     .card{padding:18px;}
@@ -310,10 +310,6 @@
       <span class="platform-tag">X / Twitter</span>
     </div>
   </section>
-
-  <div class="service-banner" id="serviceBanner" style="display:none;">
-    <span class="status-dot" id="serviceStatusDot"><span class="dot"></span><span id="serviceStatusText">Checking service status…</span></span>
-  </div>
 
   <section class="card">
     <label class="field-label">VIDEO LINK</label>
@@ -563,30 +559,6 @@ async function handleAuthSubmit() {
   }
 }
 
-async function checkServiceStatus() {
-  const banner = document.getElementById('serviceBanner');
-  const dot = document.getElementById('serviceStatusDot');
-  const text = document.getElementById('serviceStatusText');
-  try {
-    const res = await fetch(`${API_BASE}/api/whisper-status`);
-    const data = await res.json();
-    banner.style.display = 'flex';
-    if (data.available) {
-      banner.classList.remove('offline');
-      dot.classList.add('online'); dot.classList.remove('offline');
-      text.textContent = 'Transcription service is online';
-    } else {
-      banner.classList.add('offline');
-      dot.classList.add('offline'); dot.classList.remove('online');
-      text.textContent = 'Transcription service is temporarily offline — please try again later';
-    }
-  } catch (e) {
-    banner.style.display = 'flex';
-    banner.classList.add('offline');
-    text.textContent = 'Could not reach the transcription service';
-  }
-}
-
 async function loadProfile() {
   if (!currentSession) return;
   try {
@@ -735,8 +707,6 @@ async function renderPayPalButtons() {
 }
 
 initSession();
-checkServiceStatus();
-setInterval(checkServiceStatus, 30000);
 renderPayPalButtons();
 </script>
 </body>
