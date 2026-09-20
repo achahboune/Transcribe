@@ -224,7 +224,7 @@
   }
   .plan.featured .plan-cta{background:var(--signal); color:#FFFFFF; border-color:var(--signal); font-weight:600;}
   .plan-cta:hover{filter:brightness(1.05);}
-  .paypal-btn-wrap{margin-top:14px; min-height:35px;}
+  .paypal-btn-wrap{margin-top:14px; min-height:35px; position:relative; z-index:1;}
   .paypal-btn-wrap.disabled{opacity:0.4; pointer-events:none;}
 
   footer{
@@ -234,7 +234,7 @@
 
   .modal-overlay{
     position:fixed; inset:0; background:rgba(6,7,9,0.88); backdrop-filter:blur(6px);
-    display:none; align-items:center; justify-content:center; z-index:50; padding:20px;
+    display:none; align-items:center; justify-content:center; z-index:99999; padding:20px;
   }
   .modal-overlay.show{display:flex;}
   .modal{
@@ -314,7 +314,7 @@
   <section class="card">
     <label class="field-label">VIDEO LINK</label>
     <div class="url-row">
-      <input type="text" class="url-input" id="urlInput" placeholder="https://www.tiktok.com/@user/video/...">
+      <input type="text" class="url-input" id="urlInput" placeholder="https://www.tiktok.com/@user/video/..." onkeydown="if(event.key==='Enter'){event.preventDefault();handleTranscribe();}">
     </div>
 
     <label class="field-label">LANGUAGE</label>
@@ -381,7 +381,7 @@
             <li>TXT export</li>
           </ul>
         </div>
-        <button class="plan-cta" onclick="openAuthModal('signup')">Current plan</button>
+        <button class="plan-cta" id="freePlanBtn" onclick="handleFreePlanClick()">Current plan</button>
       </div>
 
       <div class="plan featured">
@@ -432,8 +432,8 @@
     <p class="sub" id="authSub">Welcome back.</p>
     <div class="modal-error" id="authError"></div>
     <div class="modal-success" id="authSuccess"></div>
-    <input type="email" id="authEmail" name="ta_email_field" placeholder="Email" autocomplete="off">
-    <input type="password" id="authPassword" name="ta_password_field" placeholder="Password" autocomplete="new-password">
+    <input type="email" id="authEmail" name="ta_email_field" placeholder="Email" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('authPassword').focus();}">
+    <input type="password" id="authPassword" name="ta_password_field" placeholder="Password" autocomplete="new-password" onkeydown="if(event.key==='Enter'){event.preventDefault();handleAuthSubmit();}">
     <button class="btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">
       <span class="spinner"></span>
       <span class="btn-label">Sign in</span>
@@ -469,23 +469,41 @@ sb.auth.onAuthStateChange((_event, session) => {
 
 function updateAuthUI() {
   const area = document.getElementById('authArea');
+  const freeBtn = document.getElementById('freePlanBtn');
   if (currentSession) {
     const email = currentSession.user.email;
     area.innerHTML = `
       <span class="pill">${email}</span>
       <span class="btn-ghost" onclick="handleSignOut()">Sign out</span>
     `;
+    if (freeBtn) freeBtn.textContent = 'Your current plan';
   } else {
     area.innerHTML = `
       <span class="btn-ghost" onclick="openAuthModal('signin')">Sign in</span>
       <button class="btn-signin" onclick="openAuthModal('signup')">Get started</button>
     `;
     document.getElementById('usageWrap').classList.remove('show');
+    if (freeBtn) freeBtn.textContent = 'Get started free';
   }
+}
+
+function handleFreePlanClick() {
+  if (currentSession) return; // already signed in — Free is their default plan, nothing to do
+  openAuthModal('signup');
 }
 
 async function handleSignOut() {
   await sb.auth.signOut();
+  resetPageState();
+}
+
+function resetPageState() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('langSelect').value = 'auto';
+  document.getElementById('statusLine').classList.remove('show', 'error');
+  document.getElementById('resultCard').classList.remove('show');
+  document.getElementById('transcriptText').textContent = '';
+  document.getElementById('usageWrap').classList.remove('show');
 }
 
 function openAuthModal(mode) {
@@ -495,10 +513,12 @@ function openAuthModal(mode) {
   document.getElementById('authError').classList.remove('show');
   document.getElementById('authSuccess').classList.remove('show');
   clearAuthFields();
+  hidePayPalButtons();
   // Chrome sometimes autofills the password field slightly after the modal
   // opens, overriding the immediate clear above — clear again a moment later.
   setTimeout(clearAuthFields, 60);
   setTimeout(clearAuthFields, 300);
+  setTimeout(() => document.getElementById('authEmail').focus(), 80);
 }
 function clearAuthFields() {
   document.getElementById('authEmail').value = '';
@@ -506,6 +526,19 @@ function clearAuthFields() {
 }
 function closeAuthModal() {
   document.getElementById('authOverlay').classList.remove('show');
+  showPayPalButtons();
+}
+function hidePayPalButtons() {
+  ['paypal-btn-creator', 'paypal-btn-pro'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.visibility = 'hidden';
+  });
+}
+function showPayPalButtons() {
+  ['paypal-btn-creator', 'paypal-btn-pro'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.visibility = 'visible';
+  });
 }
 function switchAuthMode() {
   authMode = authMode === 'signin' ? 'signup' : 'signin';
@@ -534,6 +567,11 @@ async function handleAuthSubmit() {
     errorEl.classList.add('show');
     return;
   }
+  if (authMode === 'signup' && password.length < 6) {
+    errorEl.textContent = "Password must be at least 6 characters.";
+    errorEl.classList.add('show');
+    return;
+  }
 
   btn.classList.add('loading'); btn.disabled = true;
   try {
@@ -544,6 +582,16 @@ async function handleAuthSubmit() {
     } else {
       const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
+
+      // Supabase returns success (no error) with an empty identities array
+      // when the email is already registered, instead of a clear error —
+      // detect that case explicitly so the person isn't left guessing.
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        errorEl.textContent = "An account with this email already exists. Try signing in instead.";
+        errorEl.classList.add('show');
+        return;
+      }
+
       if (data.session) {
         closeAuthModal();
       } else {
@@ -552,11 +600,28 @@ async function handleAuthSubmit() {
       }
     }
   } catch (err) {
-    errorEl.textContent = err.message || "Something went wrong.";
+    errorEl.textContent = friendlyAuthError(err.message);
     errorEl.classList.add('show');
   } finally {
     btn.classList.remove('loading'); btn.disabled = false;
   }
+}
+
+function friendlyAuthError(message) {
+  const msg = (message || '').toLowerCase();
+  if (msg.includes('already registered') || msg.includes('already exists')) {
+    return 'An account with this email already exists. Try signing in instead.';
+  }
+  if (msg.includes('invalid login credentials')) {
+    return 'Incorrect email or password.';
+  }
+  if (msg.includes('email not confirmed')) {
+    return 'Please confirm your email first — check your inbox for the confirmation link.';
+  }
+  if (msg.includes('password') && msg.includes('6')) {
+    return 'Password must be at least 6 characters.';
+  }
+  return message || 'Something went wrong. Please try again.';
 }
 
 async function loadProfile() {
@@ -574,6 +639,11 @@ async function loadProfile() {
     document.getElementById('usageWrap').classList.add('show');
     document.getElementById('usageText').textContent = `${used.toFixed(1)} / ${limit} min · ${profile.plan}`;
     document.getElementById('usageFill').style.width = `${pct}%`;
+
+    const freeBtn = document.getElementById('freePlanBtn');
+    if (freeBtn) {
+      freeBtn.textContent = profile.plan === 'free' ? 'Your current plan' : 'Downgrade to Free';
+    }
   } catch (e) { /* silent */ }
 }
 
@@ -705,6 +775,17 @@ async function renderPayPalButtons() {
     console.warn('PayPal buttons could not be loaded.');
   }
 }
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('authOverlay').classList.contains('show')) {
+    closeAuthModal();
+  }
+});
+
+// Clicking the dimmed backdrop closes the modal, like clicking outside a dialog normally does.
+document.getElementById('authOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'authOverlay') closeAuthModal();
+});
 
 initSession();
 renderPayPalButtons();
