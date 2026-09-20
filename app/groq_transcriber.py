@@ -66,8 +66,66 @@ async def transcribe_audio(wav_path: str, language: str = "auto") -> dict:
         raise TranscriptionError(f"Transcription engine returned an error ({resp.status_code}): {resp.text[:200]}")
 
     result = resp.json()
+    text = result.get("text", "").strip()
+    detected_language = result.get("language")
+
+    # Arabic ASR is known to be less accurate than other languages (dialect
+    # variation, code-switching with French/English common in Morocco).
+    # A quick LLM pass catches common speech-recognition mistakes and
+    # improves readability, at no extra cost (Groq also hosts free LLMs).
+    effective_language = language if language != "auto" else detected_language
+    if effective_language == "ar" and text:
+        try:
+            text = await _correct_arabic_text(text)
+        except Exception:
+            # Correction is a best-effort improvement — never fail the
+            # whole request over it; fall back to the raw transcript.
+            pass
+
     return {
-        "text": result.get("text", "").strip(),
-        "detected_language": result.get("language"),
+        "text": text,
+        "detected_language": detected_language,
         "duration": result.get("duration"),
     }
+
+
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+CORRECTION_MODEL = "allam-2-7b"  # SDAIA's Arabic-specialized model — better suited
+                                  # for correcting Arabic ASR output than a general LLM
+
+
+async def _correct_arabic_text(text: str) -> str:
+    """
+    Passes Arabic transcripts through a free LLM to fix common speech-to-text
+    errors (misheard words, missing diacritics context, dialect spelling
+    inconsistencies) — without changing the meaning or paraphrasing.
+    """
+    prompt = (
+        "The following is a raw speech-to-text transcript in Arabic. "
+        "It may contain misrecognized words typical of automatic speech "
+        "recognition errors, especially for Moroccan/Maghrebi dialect. "
+        "Correct only clear transcription mistakes (wrong words that don't "
+        "make sense in context, obvious mis-hearings). Do NOT paraphrase, "
+        "summarize, translate, or change the meaning or dialect. Preserve "
+        "the original wording wherever it is plausible. Return ONLY the "
+        "corrected text, nothing else.\n\n"
+        f"Transcript:\n{text}"
+    )
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            GROQ_CHAT_URL,
+            headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+            json={
+                "model": CORRECTION_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+            },
+        )
+
+    if resp.status_code != 200:
+        return text  # fall back silently to the raw transcript
+
+    data = resp.json()
+    corrected = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+    return corrected if corrected else text
