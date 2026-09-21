@@ -302,12 +302,13 @@
 
   <section class="hero">
     <h1>Turn any video into text, in seconds.</h1>
-    <p>Paste a link from TikTok, Instagram, Facebook or X. Pick a language. Get a clean transcript.</p>
+    <p>Paste a link from TikTok, Instagram, Facebook, X or YouTube. Pick a language. Get a clean transcript.</p>
     <div class="platforms">
       <span class="platform-tag">TikTok</span>
       <span class="platform-tag">Instagram</span>
       <span class="platform-tag">Facebook</span>
       <span class="platform-tag">X / Twitter</span>
+      <span class="platform-tag">YouTube</span>
     </div>
   </section>
 
@@ -432,8 +433,8 @@
     <p class="sub" id="authSub">Welcome back.</p>
     <div class="modal-error" id="authError"></div>
     <div class="modal-success" id="authSuccess"></div>
-    <input type="email" id="authEmail" name="ta_email_field" placeholder="Email" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('authPassword').focus();}">
-    <input type="password" id="authPassword" name="ta_password_field" placeholder="Password" autocomplete="new-password" onkeydown="if(event.key==='Enter'){event.preventDefault();handleAuthSubmit();}">
+    <input type="email" id="authEmail" name="email" placeholder="Email" autocomplete="email" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('authPassword').focus();}">
+    <input type="password" id="authPassword" name="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter'){event.preventDefault();handleAuthSubmit();}">
     <button class="btn-primary" id="authSubmitBtn" onclick="handleAuthSubmit()">
       <span class="spinner"></span>
       <span class="btn-label">Sign in</span>
@@ -514,10 +515,6 @@ function openAuthModal(mode) {
   document.getElementById('authSuccess').classList.remove('show');
   clearAuthFields();
   hidePayPalButtons();
-  // Chrome sometimes autofills the password field slightly after the modal
-  // opens, overriding the immediate clear above — clear again a moment later.
-  setTimeout(clearAuthFields, 60);
-  setTimeout(clearAuthFields, 300);
   setTimeout(() => document.getElementById('authEmail').focus(), 80);
 }
 function clearAuthFields() {
@@ -551,6 +548,11 @@ function applyAuthModeUI() {
   document.getElementById('authToggle').innerHTML = authMode === 'signin'
     ? `No account? <a onclick="switchAuthMode()">Sign up</a>`
     : `Already have an account? <a onclick="switchAuthMode()">Sign in</a>`;
+  // Tells the browser whether this is a login (offer saved password) or a
+  // signup (offer to save a new one) so it can prompt to remember it.
+  document.getElementById('authPassword').setAttribute(
+    'autocomplete', authMode === 'signin' ? 'current-password' : 'new-password'
+  );
 }
 
 async function handleAuthSubmit() {

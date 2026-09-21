@@ -23,6 +23,8 @@ def detect_platform(url: str) -> str:
         return "facebook"
     if "x.com" in u or "twitter" in u:
         return "x"
+    if "youtube.com" in u or "youtu.be" in u:
+        return "youtube"
     return "unknown"
 
 
