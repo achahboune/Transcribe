@@ -227,6 +227,33 @@
   .paypal-btn-wrap{margin-top:14px; min-height:35px; position:relative; z-index:1;}
   .paypal-btn-wrap.disabled{opacity:0.4; pointer-events:none;}
 
+  .contact{margin-top:72px;}
+  .contact-head{margin-bottom:24px;}
+  .contact-head h2{font-size:24px; font-weight:600; letter-spacing:-0.02em; color:var(--text);}
+  .contact-head p{color:var(--text-dim); font-size:14.5px; margin-top:8px;}
+  .contact-card{
+    background:var(--bg-raised); border:1px solid var(--border);
+    border-radius:var(--radius); padding:24px; box-shadow:var(--shadow);
+    max-width:480px;
+  }
+  .contact-card label{margin-top:14px;}
+  .contact-card label:first-of-type{margin-top:0;}
+  .contact-card input, .contact-card textarea{
+    width:100%; background:var(--bg-inset); border:1px solid var(--border); border-radius:8px;
+    padding:12px 14px; color:var(--text); font-size:14px; font-family:var(--font);
+    margin-bottom:2px; resize:vertical;
+  }
+  .contact-card input:focus, .contact-card textarea:focus{border-color:var(--signal); outline:none;}
+  .contact-card .btn-primary{margin-top:16px;}
+  .contact-error{color:var(--danger); font-size:13px; margin-top:8px; display:none;}
+  .contact-error.show{display:block;}
+  .contact-success{
+    display:none; align-items:center; gap:8px; color:var(--signal);
+    font-size:14px; font-weight:500; padding:12px 0;
+  }
+  .contact-success.show{display:flex;}
+  .contact-form-hidden{display:none;}
+
   footer{
     max-width:960px; margin:80px auto 0; padding:24px; border-top:1px solid var(--border);
     display:flex; justify-content:space-between; font-size:12.5px; color:var(--text-faint);
@@ -315,7 +342,7 @@
   <section class="card">
     <label class="field-label">VIDEO LINK</label>
     <div class="url-row">
-      <input type="text" class="url-input" id="urlInput" placeholder="https://www.tiktok.com/@user/video/..." onkeydown="if(event.key==='Enter'){event.preventDefault();handleTranscribe();}">
+      <input type="text" class="url-input" id="urlInput" name="video_url" placeholder="https://www.tiktok.com/@user/video/..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();handleTranscribe();}">
     </div>
 
     <label class="field-label">LANGUAGE</label>
@@ -416,6 +443,36 @@
           <div class="paypal-btn-wrap" id="paypal-btn-pro"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section class="contact">
+    <div class="contact-head">
+      <h2>Get in touch</h2>
+      <p>Questions, feedback, or a custom plan? Send us a message.</p>
+    </div>
+    <div class="contact-card">
+      <div class="contact-success" id="contactSuccess">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+        Thanks — we'll get back to you shortly.
+      </div>
+      <form id="contactForm" onsubmit="handleContactSubmit(event)">
+        <label class="field-label">NAME</label>
+        <input type="text" id="contactName" placeholder="Your name" autocomplete="name" required>
+
+        <label class="field-label">EMAIL</label>
+        <input type="email" id="contactEmail" placeholder="you@example.com" autocomplete="email" required>
+
+        <label class="field-label">MESSAGE</label>
+        <textarea id="contactMessage" placeholder="How can we help?" rows="4" required></textarea>
+
+        <div class="contact-error" id="contactError"></div>
+
+        <button type="submit" class="btn-primary" id="contactSubmitBtn" style="width:100%;">
+          <span class="spinner"></span>
+          <span class="btn-label">Send message</span>
+        </button>
+      </form>
     </div>
   </section>
 
@@ -788,6 +845,53 @@ document.addEventListener('keydown', (e) => {
 document.getElementById('authOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'authOverlay') closeAuthModal();
 });
+
+// ---------- Contact form ----------
+async function handleContactSubmit(event) {
+  event.preventDefault();
+  const name = document.getElementById('contactName').value.trim();
+  const email = document.getElementById('contactEmail').value.trim();
+  const message = document.getElementById('contactMessage').value.trim();
+  const errorEl = document.getElementById('contactError');
+  const btn = document.getElementById('contactSubmitBtn');
+  const form = document.getElementById('contactForm');
+  const successEl = document.getElementById('contactSuccess');
+
+  errorEl.classList.remove('show');
+
+  if (!name || !email || !message) {
+    errorEl.textContent = 'Please fill in every field.';
+    errorEl.classList.add('show');
+    return;
+  }
+
+  btn.classList.add('loading'); btn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/contact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, message })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Could not send your message.');
+
+    form.classList.add('contact-form-hidden');
+    successEl.classList.add('show');
+    document.getElementById('contactName').value = '';
+    document.getElementById('contactEmail').value = '';
+    document.getElementById('contactMessage').value = '';
+
+    setTimeout(() => {
+      successEl.classList.remove('show');
+      form.classList.remove('contact-form-hidden');
+    }, 3000);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.add('show');
+  } finally {
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
 
 initSession();
 renderPayPalButtons();

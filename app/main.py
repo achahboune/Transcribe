@@ -19,6 +19,7 @@ from .downloader import download_audio, detect_platform, cleanup_job_dir, Downlo
 from .groq_transcriber import transcribe_audio, check_groq_alive, groq_configured, TranscriptionError
 from .auth import get_current_user, get_profile, update_minutes_used
 from .billing import router as billing_router
+from .contact import router as contact_router
 
 app = FastAPI(title="TranscribeAI Orchestrator")
 
@@ -31,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(billing_router)
+app.include_router(contact_router)
 
 # Serve the frontend (frontend/index.html) at the root — this avoids the
 # artifact/claude.ai CSP that blocks fetch() calls to external APIs like

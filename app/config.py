@@ -22,6 +22,11 @@ class Settings(BaseSettings):
 
     max_job_seconds: int = 900  # 15 min hard cap per video for the MVP
 
+    # Resend — sends the contact form notification (to Alaa) and the
+    # thank-you email (to the visitor). Free tier: 3000 emails/month.
+    resend_api_key: str = ""
+    contact_notify_email: str = "achahboune@gmail.com"
+
     class Config:
         env_file = ".env"
 
