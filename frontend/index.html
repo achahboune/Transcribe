@@ -47,7 +47,7 @@
   .shell{max-width:960px; margin:0 auto; padding:0 24px 120px;}
   header.top{
     display:flex; align-items:center; justify-content:space-between;
-    max-width:960px; margin:0 auto; padding:28px 24px 40px;
+    max-width:960px; margin:0 auto; padding:24px 24px 28px;
   }
   .logo{
     display:flex; align-items:center; gap:10px;
@@ -87,7 +87,7 @@
   }
   .btn-signin:hover{border-color:var(--signal);}
 
-  .hero{padding:8px 0 28px;}
+  .hero{padding:4px 0 20px;}
   .hero h1{
     font-size:clamp(26px, 5.5vw, 40px); font-weight:600; letter-spacing:-0.03em; line-height:1.15;
     max-width:560px; white-space:nowrap;
@@ -187,7 +187,7 @@
   .transcript-text::-webkit-scrollbar{width:6px;}
   .transcript-text::-webkit-scrollbar-thumb{background:var(--border); border-radius:3px;}
 
-  .pricing{margin-top:72px;}
+  .pricing{margin-top:48px;}
   .pricing-head{margin-bottom:28px;}
   .pricing-head h2{font-size:24px; font-weight:600; letter-spacing:-0.02em;}
   .pricing-head p{color:var(--text-dim); font-size:14.5px; margin-top:8px;}
@@ -227,7 +227,7 @@
   .paypal-btn-wrap{margin-top:14px; min-height:35px; position:relative; z-index:1;}
   .paypal-btn-wrap.disabled{opacity:0.4; pointer-events:none;}
 
-  .contact{margin-top:72px;}
+  .contact{margin-top:48px;}
   .contact-head{margin-bottom:24px;}
   .contact-head h2{font-size:24px; font-weight:600; letter-spacing:-0.02em; color:var(--text);}
   .contact-head p{color:var(--text-dim); font-size:14.5px; margin-top:8px;}
@@ -289,6 +289,7 @@
     header.top{padding:20px 16px 28px; flex-wrap:nowrap;}
     .logo{font-size:14px; gap:8px;}
     .auth-area{gap:8px;}
+    .auth-area a.btn-ghost{display:none;}
     .pill{max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
     .btn-signin{padding:8px 12px; font-size:13px;}
     .hero{padding:4px 0 22px;}
@@ -320,6 +321,7 @@
     TranscribeAI
   </div>
   <div class="auth-area" id="authArea">
+    <a class="btn-ghost" href="#contact">Get in touch</a>
     <span class="btn-ghost" onclick="openAuthModal('signin')">Sign in</span>
     <button class="btn-signin" onclick="openAuthModal('signup')">Get started</button>
   </div>
@@ -342,7 +344,7 @@
   <section class="card">
     <label class="field-label">VIDEO LINK</label>
     <div class="url-row">
-      <input type="text" class="url-input" id="urlInput" name="video_url" placeholder="https://www.tiktok.com/@user/video/..." autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();handleTranscribe();}">
+      <input type="text" class="url-input" id="urlInput" name="q_vlink_9f3" placeholder="https://www.tiktok.com/@user/video/..." autocomplete="off" data-lpignore="true" data-form-type="other" readonly onfocus="this.removeAttribute('readonly')" onkeydown="if(event.key==='Enter'){event.preventDefault();handleTranscribe();}">
     </div>
 
     <label class="field-label">LANGUAGE</label>
@@ -446,7 +448,7 @@
     </div>
   </section>
 
-  <section class="contact">
+  <section class="contact" id="contact">
     <div class="contact-head">
       <h2>Get in touch</h2>
       <p>Questions, feedback, or a custom plan? Send us a message.</p>
@@ -531,12 +533,14 @@ function updateAuthUI() {
   if (currentSession) {
     const email = currentSession.user.email;
     area.innerHTML = `
+      <a class="btn-ghost" href="#contact">Get in touch</a>
       <span class="pill">${email}</span>
       <span class="btn-ghost" onclick="handleSignOut()">Sign out</span>
     `;
     if (freeBtn) freeBtn.textContent = 'Your current plan';
   } else {
     area.innerHTML = `
+      <a class="btn-ghost" href="#contact">Get in touch</a>
       <span class="btn-ghost" onclick="openAuthModal('signin')">Sign in</span>
       <button class="btn-signin" onclick="openAuthModal('signup')">Get started</button>
     `;
