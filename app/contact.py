@@ -5,10 +5,9 @@ Uses Resend (free tier: 3000 emails/month, no credit card) to:
 1. Notify Alaa at his email with the visitor's message.
 2. Send the visitor a short thank-you confirmation.
 
-No Resend domain is verified for this project yet, so emails are sent
-from Resend's shared "onboarding@resend.dev" sender — this works
-immediately with zero setup, and can be swapped for a custom domain
-address later without changing this code.
+Sends from a verified transcribeai.site address — required for delivering
+to arbitrary visitor emails (Resend's shared sandbox address only allows
+sending to the account owner's own verified email).
 """
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -19,7 +18,7 @@ from .config import settings
 router = APIRouter(prefix="/api", tags=["contact"])
 
 RESEND_API_URL = "https://api.resend.com/emails"
-FROM_ADDRESS = "TranscribeAI <onboarding@resend.dev>"
+FROM_ADDRESS = "TranscribeAI <contact@transcribeai.site>"
 
 
 def _resend_configured() -> bool:
@@ -81,7 +80,10 @@ async def contact(payload: ContactRequest):
     """
     try:
         await _send_email(email, "Thanks for contacting TranscribeAI", thanks_html)
-    except RuntimeError:
-        pass
+    except RuntimeError as e:
+        # Best-effort: Alaa already got the notification above, so don't
+        # fail the whole request — but this shouldn't happen now that the
+        # domain is verified, so print it for visibility in Render logs.
+        print(f"[contact] Thank-you email failed: {e}")
 
     return {"status": "ok"}
